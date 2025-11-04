@@ -11,8 +11,7 @@ from wordcloud import WordCloud
 import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
-import spacy
-from spacy.cli import download
+import en_core_web_sm  # Modell ist schon in requirements.txt installiert
 from transformers import pipeline
 
 # ==========================================================
@@ -21,17 +20,12 @@ from transformers import pipeline
 st.set_page_config(page_title="Customer Opinion Analyzer", layout="wide")
 st.title("🧠 Customer Opinion Sentiment Analysis App")
 
-# --- Load NLP models (auto-download for Streamlit Cloud) ---
+# --- Load NLP models ---
 with st.spinner("Loading language models..."):
     nltk.download("stopwords")
     nltk.download("wordnet")
     nltk.download("omw-1.4")
-    try:
-        nlp = spacy.load("en_core_web_sm")
-    except OSError:
-        with st.spinner("Downloading spaCy model (en_core_web_sm)..."):
-            download("en_core_web_sm")
-        nlp = spacy.load("en_core_web_sm")
+    nlp = en_core_web_sm.load()
 
 # ==========================================================
 # 1️⃣ File upload
@@ -72,7 +66,7 @@ if uploaded_file:
     all_words = " ".join(df["cleaned_text"])
     wordcloud = WordCloud(width=800, height=400, background_color="white").generate(all_words)
 
-    st.subheader("Word Cloud")
+    st.subheader("☁️ Word Cloud")
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.imshow(wordcloud, interpolation="bilinear")
     ax.axis("off")
@@ -84,7 +78,7 @@ if uploaded_file:
     top_words = word_counts.most_common(10)
     words, counts = zip(*top_words)
 
-    st.subheader("Top 10 Words Bar Chart")
+    st.subheader("📊 Top 10 Words Bar Chart")
     fig, ax = plt.subplots(figsize=(8, 5))
     ax.bar(words, counts, color="skyblue")
     ax.set_title("Top 10 Most Frequent Words", fontsize=14, weight="bold")
@@ -96,7 +90,7 @@ if uploaded_file:
     # ==========================================================
     # 4️⃣ Additional Analysis: Adjectives
     # ==========================================================
-    st.header("Additional Analysis – Most Frequent Adjectives")
+    st.header("✨ Additional Analysis – Most Frequent Adjectives")
 
     adjectives = []
     for text in df["cleaned_text"]:
@@ -119,7 +113,7 @@ if uploaded_file:
     # ==========================================================
     # 5️⃣ Sentiment Analysis
     # ==========================================================
-    st.header("Sentiment Classification (Positive / Neutral / Negative)")
+    st.header("💬 Sentiment Classification (Positive / Neutral / Negative)")
 
     with st.spinner("Loading sentiment analysis model..."):
         sentiment_analyzer = pipeline(
@@ -161,7 +155,7 @@ if uploaded_file:
     # ==========================================================
     # 6️⃣ User Input for New Opinion
     # ==========================================================
-    st.header("Try It Yourself – Enter a New Opinion")
+    st.header("🧩 Try It Yourself – Enter a New Opinion")
 
     user_text = st.text_input("Write a new customer opinion:")
     if user_text:
