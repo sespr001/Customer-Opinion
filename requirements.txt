@@ -2,6 +2,7 @@ streamlit
 pandas
 matplotlib
 wordcloud
-spacy==3.8.2
+spacy
 nltk
-requests
+transformers
+torch
