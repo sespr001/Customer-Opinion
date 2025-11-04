@@ -1,5 +1,5 @@
 # ==========================================================
-# 📊 Streamlit App: Customer Opinion Sentiment Analysis (API Version)
+# 📊 Streamlit App: Customer Opinion Sentiment Analysis
 # ==========================================================
 
 import streamlit as st
@@ -12,36 +12,35 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.stem import WordNetLemmatizer
 import spacy
-import requests  # 👈 ersetzt transformers
+from spacy.cli import download
+from transformers import pipeline
 
-# --- Load NLP models ---
-nltk.download('stopwords')
-nltk.download('wordnet')
-nltk.download('omw-1.4')
-nlp = spacy.load("en_core_web_sm")
-
-# --- Streamlit page config ---
+# ==========================================================
+# 🔧 Setup & Model Loading
+# ==========================================================
 st.set_page_config(page_title="Customer Opinion Analyzer", layout="wide")
 st.title("🧠 Customer Opinion Sentiment Analysis App")
 
-# --- Hugging Face Inference API setup ---
-API_URL = "https://api-inference.huggingface.co/models/nlptown/bert-base-multilingual-uncased-sentiment"
-API_KEY = st.secrets.get("HUGGINGFACE_API_KEY", "")
-HEADERS = {"Authorization": f"Bearer {API_KEY}"}
-
-def hf_sentiment(text):
-    """Call the Hugging Face sentiment model API."""
-    payload = {"inputs": text}
-    response = requests.post(API_URL, headers=HEADERS, json=payload)
-    if response.status_code != 200:
-        return {"label": "3 stars", "score": 0.0}
-    return response.json()[0][0]
+# --- Load NLP models (auto-download for Streamlit Cloud) ---
+with st.spinner("Loading language models..."):
+    nltk.download("stopwords")
+    nltk.download("wordnet")
+    nltk.download("omw-1.4")
+    try:
+        nlp = spacy.load("en_core_web_sm")
+    except OSError:
+        with st.spinner("Downloading spaCy model (en_core_web_sm)..."):
+            download("en_core_web_sm")
+        nlp = spacy.load("en_core_web_sm")
 
 # ==========================================================
 # 1️⃣ File upload
 # ==========================================================
 st.header("Upload CSV File with 20 Customer Opinions")
-uploaded_file = st.file_uploader("Upload your CSV file (must have one column named 'opinion')", type=["csv"])
+uploaded_file = st.file_uploader(
+    "Upload your CSV file (must have one column named 'opinion')",
+    type=["csv"]
+)
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -53,10 +52,10 @@ if uploaded_file:
     st.header("Text Cleaning and Preprocessing")
 
     def clean_text(text):
-        text = text.lower()
-        text = re.sub(r'[^a-z\s]', '', text)
+        text = str(text).lower()
+        text = re.sub(r"[^a-z\s]", "", text)
         words = text.split()
-        stop_words = set(stopwords.words('english'))
+        stop_words = set(stopwords.words("english"))
         words = [w for w in words if w not in stop_words]
         lemmatizer = WordNetLemmatizer()
         words = [lemmatizer.lemmatize(w) for w in words]
@@ -71,24 +70,24 @@ if uploaded_file:
     st.header("Word Cloud & Top 10 Most Frequent Words")
 
     all_words = " ".join(df["cleaned_text"])
-    wordcloud = WordCloud(width=800, height=400, background_color='white').generate(all_words)
+    wordcloud = WordCloud(width=800, height=400, background_color="white").generate(all_words)
 
     st.subheader("Word Cloud")
-
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.imshow(wordcloud, interpolation="bilinear")
     ax.axis("off")
-    ax.set_title("Word Cloud of Customer Opinions", fontsize=14, weight='bold')
+    ax.set_title("Word Cloud of Customer Opinions", fontsize=14, weight="bold")
     st.pyplot(fig)
 
+    # --- Top 10 words ---
     word_counts = Counter(all_words.split())
     top_words = word_counts.most_common(10)
     words, counts = zip(*top_words)
 
     st.subheader("Top 10 Words Bar Chart")
     fig, ax = plt.subplots(figsize=(8, 5))
-    ax.bar(words, counts, color='skyblue')
-    ax.set_title("Top 10 Most Frequent Words", fontsize=14, weight='bold')
+    ax.bar(words, counts, color="skyblue")
+    ax.set_title("Top 10 Most Frequent Words", fontsize=14, weight="bold")
     ax.set_xlabel("Words")
     ax.set_ylabel("Frequency")
     plt.xticks(rotation=45)
@@ -108,8 +107,8 @@ if uploaded_file:
     if adj_counts:
         adj_words, adj_freqs = zip(*adj_counts)
         fig, ax = plt.subplots(figsize=(8, 5))
-        ax.bar(adj_words, adj_freqs, color='orange')
-        ax.set_title("Most Frequent Adjectives in Customer Opinions", fontsize=14, weight='bold')
+        ax.bar(adj_words, adj_freqs, color="orange")
+        ax.set_title("Most Frequent Adjectives in Customer Opinions", fontsize=14, weight="bold")
         ax.set_xlabel("Adjectives")
         ax.set_ylabel("Frequency")
         plt.xticks(rotation=45)
@@ -122,9 +121,15 @@ if uploaded_file:
     # ==========================================================
     st.header("Sentiment Classification (Positive / Neutral / Negative)")
 
+    with st.spinner("Loading sentiment analysis model..."):
+        sentiment_analyzer = pipeline(
+            "sentiment-analysis",
+            model="nlptown/bert-base-multilingual-uncased-sentiment"
+        )
+
     results = []
     for text in df["opinion"]:
-        result = hf_sentiment(text)
+        result = sentiment_analyzer(text)[0]
         results.append(result)
 
     df["sentiment_label"] = [r["label"] for r in results]
@@ -143,13 +148,14 @@ if uploaded_file:
 
     st.dataframe(df[["opinion", "sentiment_category", "sentiment_score"]])
 
+    # --- Sentiment distribution plot ---
     sent_counts = df["sentiment_category"].value_counts()
     fig, ax = plt.subplots(figsize=(6, 5))
     ax.bar(sent_counts.index, sent_counts.values, color=["red", "gray", "green"])
-    ax.set_title("Sentiment Distribution of Customer Opinions", fontsize=14, weight='bold')
+    ax.set_title("Sentiment Distribution of Customer Opinions", fontsize=14, weight="bold")
     ax.set_xlabel("Sentiment")
     ax.set_ylabel("Number of Opinions")
-    plt.grid(axis='y', alpha=0.3)
+    plt.grid(axis="y", alpha=0.3)
     st.pyplot(fig)
 
     # ==========================================================
@@ -159,7 +165,7 @@ if uploaded_file:
 
     user_text = st.text_input("Write a new customer opinion:")
     if user_text:
-        result = hf_sentiment(user_text)
+        result = sentiment_analyzer(user_text)[0]
         stars = int(result["label"].split()[0])
         score = result["score"]
 
